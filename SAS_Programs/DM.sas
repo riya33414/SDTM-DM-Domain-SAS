@@ -28,15 +28,24 @@
 * Note: This is a learning/portfolio project using sample data.
 *******************************************************************/
 
+/*******************************************************************
+* 1. LIBRARY SETUP
+*******************************************************************/
 
+libname raw '/home/u64498565/clinical SAS/RAW clinical sas';
 
+proc contents data=raw.dm;
+run;
 
+proc print data=raw.dm(obs=20);
+run;
 
 libname SDTM '/home/u64498565/clinical SAS/clinical';
 option nofmterr;
 
-libname raw '/home/u64498565/clinical SAS/RAW clinical sas';
-
+/*******************************************************************
+* 2. CLEAN WORK LIBRARY
+*******************************************************************/
 proc datasets lib=Work kill;
 run;
 quit;
@@ -49,45 +58,52 @@ quit;
 /*   BRTHDTC  Set to DM.BRTHDAT IN IS0 8601 format */
 /*      AGE set to DM.AGE */
 
+
+/*******************************************************************
+* 4. CREATE DM DEMOGRAPHIC INFORMATION
+*******************************************************************/
+proc contents data=raw.dm varnum;
+run;
+
 data DM1;
-/*   DM1 temporary dataset stored in WORK lib  */
- /*   if varible name in raw dataset and sdtm are same then we first rename raw variable */
 
+    set raw.dm(rename=(age=agex sex=sexx race=racex ETHNIC=ETHNICX));
 
- set raw.dm (rename=(age=agex sex=sexx race=racex ETHNIC=ETHNICX));
- length ETHNIC $200.;
- STUDYID= "AAA-2022";
- DOMAIN= "DM";
- SITEID= SITENUM;
- SUBJID= SUBSTR(SUBNUM,4);
- USUBJID= CATX("-", STUDYID, SITEID, SUBJID);
- 
- /*  USUBJID= strip(STUDYID)||"-"||STRIP(SITEID)||"-"||STRIP(SUBJID); */
-/*     USUBJID can be done by two ways by using strip and catx */
- 
- 
-/* convert to character */
-  BRTHDTC= PUT(BRTHDAT, IS8601DA.);
-/*   renaming varibles bcoz sdtm and raw has same so renaming raw on */
-  AGE= AGEX;
-  AGEU= "YEARS";
-  SEX= SEXX;
-  RACE= RACEX;
-  
-/*   set to DM.ETHNIC and adjust value per controlled terminology */
-    if ETHNICX= 'HISP'                   THEN ETHNIC= 'HISPANIC OR LATINO';
+    STUDYID = "AAA-2022";
+    DOMAIN  = "DM";
+    SITEID  = SITENUM;
+    SUBJID  = SUBSTR(SUBNUM,4);
+    USUBJID = CATX("-",STUDYID,SITEID,SUBJID);
+
+    BRTHDTC = PUT(BRTHDAT,IS8601DA.);
+/*    renaming variable because sdtm and raw has same var name */
+      AGE= AGEX;
+      AGEU= "YEARS";
+      SEX= SEXX;
+      RACE= RACEX;
+         
+         length ETHNIC $200;
+         if ETHNICX= 'HISP'                   THEN ETHNIC= 'HISPANIC OR LATINO';
     ELSE IF ETHNICX= 'NHISP'             THEN ETHNIC= 'NOT HISPANIC OR LATINO';
     ELSE IF ETHNICX= 'U'                 THEN ETHNIC= 'UNKNOWN';
     ELSE IF ETHNICX='DECLINED TO ANSWER' THEN ETHNIC= 'NOT REPORTED';
 
-  KEEP STUDYID DOMAIN SITEID SUBJID USUBJID BRTHDTC AGE SEX AGEU RACE ETHNIC;
-RUN;
- 
+KEEP STUDYID DOMAIN SITEID SUBJID USUBJID BRTHDTC AGE SEX AGEU RACE ETHNIC;
+run;
+
   PROC SORT ;
      BY USUBJID ;
   RUN;
+  
+proc print data=dm1;
+run;
 
 
+/*******************************************************************
+* 5. INFORMED CONSENT DATA
+*******************************************************************/
+proc contents data=RAW.IC varnum;
+run;
 
 data IC;
        SET RAW.IC;
@@ -96,13 +112,10 @@ data IC;
      DOMAIN= 'DM';
      SITEID= SITENUM;
      SUBJID= SUBSTR(SUBNUM, 4);
-/*      	join the variables for usubjid */
      USUBJID= CATX("-",STUDYID,SITEID,SUBJID);
-     RFICDTC1= PUT (ICDAT, YYMMDD10.);
    
-/*      (from) set to IC.ICDAT */
-     RFICDTC= PUT(ICDAT, IS8601DA.);
-     
+     RFICDTC = PUT(ICDAT, IS8601DA.);
+
      keep USUBJID RFICDTC ;
  RUN;
    
@@ -112,9 +125,12 @@ data IC;
           
    PROC PRINT DATA= WORK.IC;
    RUN;
- 
 
-
+/*******************************************************************
+* 6. DISPOSITION DATA
+*******************************************************************/
+proc contents data=RAW.DS varnum;
+run;
 
 DATA DS;
         SET RAW.DS;
@@ -125,145 +141,180 @@ DATA DS;
     SUBJID= SUBSTR(SUBNUM, 4);
     USUBJID= CATX("-", STUDYID, SITEID, SUBJID);
     
-    IF DSDTHDAT NE . THEN DTHDTC = PUT (DSDTHDAT, YYMMDD10.);
+        IF DSDTHDAT NE . THEN DTHDTC = PUT (DSDTHDAT, YYMMDD10.);
     IF DTHDTC NE ''  THEN DTHFL= 'Y';
     IF DSLVDAT NE .  THEN RFPENDTC= PUT (DSLVDAT, YYMMDD10.);
     
     KEEP USUBJID DTHDTC DTHFL RFPENDTC;
+run;
 
-   proc sort; 
-           by USUBJID;
-           RUN;
-           
+proc sort data=DS;
+    by USUBJID;
+run;
 
 PROC PRINT DATA= WORK.DS;
 RUN;
 
 
-
-
-data EX;
-       SET RAW.EX;
-       
-       STUDYID= "AAA-2022";
-       DOMAIN='DM';
-       SITEID= SITENUM;
-       SUBJID= SUBSTR(SUBNUM,4);
-       USUBJID= CATX("-", STUDYID, SITEID, SUBJID);
-       
-/*      IF EXSTDAT NE . THEN DO; */
-/*      RFXSTDTC =PUT (EXSTDAT, YYMMDD10.) ||"T"|| PUT(EXSTTIM,TOD8.); */
-/*      RFSTDTC=PUT(EXSTDAT, YYMMDD10.)    ||"T"|| PUT(EXSTTIM,TOD8.); */
-/*       */
-/*      RFXENDTC=PUT(EXSTDAT, YYMMDD10.)   ||"T"|| PUT(EXSTTIM,TOD8.); */
-/*      RFENDTC=PUT(EXSTDAT, YYMMDD10.)    ||"T"|| PUT(EXSTTIM,TOD8.); */
-
-/*       (or rather repeating same code 4 times use this) */
-
-        IF EXSTDAT NE . THEN DO ;
-        RFXSTDTC= CATS(PUT(EXSTDAT, YYMMDD10.), 'T', PUT(EXSTTIM, TOD8.));
+/*******************************************************************
+* 7. EXPOSURE DATA
+*******************************************************************/
+proc contents data=RAW.EX varnum;
+run;
+ 
+data EX; 
+    SET RAW.EX; 
         
-        RFSTDTC = RFXSTDTC;
+    STUDYID= "AAA-2022"; 
+    DOMAIN='DM'; 
+    SITEID= SITENUM; 
+    SUBJID= SUBSTR(SUBNUM,4); 
+    USUBJID= CATX("-", STUDYID, SITEID, SUBJID); 
+  
+    IF EXSTDAT NE . THEN DO; 
+        RFXSTDTC= CATS(PUT(EXSTDAT, YYMMDD10.), 'T', PUT(EXSTTIM, TOD8.)); 
+    END;
+        
+    KEEP USUBJID RFXSTDTC; 
+RUN; 
+        
+PROC SORT DATA=EX; 
+    BY USUBJID RFXSTDTC; 
+RUN;
+
+data EX_FINAL;
+    set EX;
+    by USUBJID;
+
+    retain FIRST_EXPOSURE;
+
+    if first.USUBJID then FIRST_EXPOSURE = RFXSTDTC;
+
+    if last.USUBJID then do;
+        RFXSTDTC = FIRST_EXPOSURE;
         RFXENDTC = RFXSTDTC;
-        RFENDTC = RFXSTDTC;    
-  END;
-       
-      KEEP USUBJID RFXSTDTC RFSTDTC RFXENDTC RFENDTC;
-   RUN;
-       
-PROC SORT;
-         BY USUBJID RFSTDTC;
-         RUN;
- 
- PROC SORT NODUPKEY;
-           BY USUBJID;
-           RUN;
-           
- PROC PRINT DATA= WORK.ex; 
- RUN;
-         
- PROC PRINT DATA= RAW.EX;
-           WHERE EXSTDAT= . or EXSTTIM= .;
-           
-        VAR SUBNUM SITENUM EXSTDAT;
-        RUN;
-/*      (did proc print because they were showing blanks in some data rows of exstdat)   */
-       
- 
- DATA TRT;
-         SET RAW.DUMMY_RND;
-         
-         LENGTH ARMCD ACTARMCD $8. ARM ACTARM $200.;
-         STUDYID= "AAA-2022";
-         DOMAIN= 'DM';
-         SITEID= SUBSTR(USUBJID, 12, 3);
-         SUBJID= SUBSTR(USUBJID, 15);
-         USUBJID= CATX("-", STUDYID, SITEID, SUBJID);
-         
-         ARMCD=TRTCD;
-         IF ARMCD= 'TQ'      THEN ARM= 'TQU';
-         IF ARMCD= 'PLACEBO' THEN ARM= 'PLACEBO';
-         
-         ACTARMCD=TRTCD;
-         IF ACTARMCD= 'TQ'      THEN ACTARM= 'TQU';
-         IF ACTARMCD= 'PLACEBO' THEN ACTARM= 'PLACEBO';
-         
-         KEEP USUBJID ARMCD ARM ACTARMCD ACTARM;
-         
- RUN;
- 
-  PROC SORT;
-           BY USUBJID;
-           RUN;
-           
-  PROC PRINT DATA=WORK.TRT;
-  RUN;
-        
-        
+        RFSTDTC  = RFXSTDTC;
+        RFENDTC  = RFXENDTC;
+        output;
+    end;
+
+    keep USUBJID RFXSTDTC RFSTDTC RFXENDTC RFENDTC;
+run;
+
+proc print data=EX_FINAL(obs=20);
+    var USUBJID RFXSTDTC RFSTDTC RFXENDTC RFENDTC;
+run;
+
+/*******************************************************************
+* 8. RANDOMIZATION / TREATMENT DATA
+*******************************************************************/
+
+DATA TRT;
+    SET RAW.DUMMY_RND;
+
+    LENGTH ARMCD ACTARMCD $8.
+           ARM ACTARM $200.;
+
+    STUDYID = "AAA-2022";
+    DOMAIN  = "DM";
+
+    /* Derive SITEID and SUBJID from existing USUBJID */
+    SITEID = SUBSTR(USUBJID,10,3);
+    SUBJID = SUBSTR(USUBJID,14);
+
+    /* Re-create standardized USUBJID */
+    USUBJID = CATX("-", STUDYID, SITEID, SUBJID);
+
+    /* Planned treatment */
+    ARMCD = TRTCD;
+
+    IF ARMCD = "TQ" THEN
+        ARM = "TQU";
+    ELSE IF ARMCD = "PLACEBO" THEN
+        ARM = "PLACEBO";
+
+    /* Actual treatment */
+    ACTARMCD = TRTCD;
+
+    IF ACTARMCD = "TQ" THEN
+        ACTARM = "TQU";
+    ELSE IF ACTARMCD = "PLACEBO" THEN
+        ACTARM = "PLACEBO";
+
+    KEEP USUBJID ARMCD ARM ACTARMCD ACTARM;
+RUN;
+
+PROC SORT DATA=TRT;
+    BY USUBJID;
+RUN;
+
+PROC PRINT DATA=WORK.TRT;
+RUN;
+
+
+/*******************************************************************
+* 9. SCREEN FAILURE DATA
+*******************************************************************/
+
 DATA SCF;
-        SET RAW.DAT_SUB;
-        
-        STUDYID= "AAA-2022";
-        DOMAIN= 'DM';
-        SITEID= SITENUM;
-        SUBJID= SUBSTR(SUBNUM, 4);
-        USUBJID= CATX("-" ,STUDYID, SITEID, SUBJID);
-        
-        IF STATUSID=15 THEN DO;
-        ARMNRS= 'SCREEN FAILURE';
-        ACTARMUD= 'SCREEN FAILURE';
-        END;
-        
-        KEEP USUBJID ARMNRS ACTARMUD;
-   RUN;
-   
-   PROC SORT;
-           BY USUBJID;
-           RUN;
-           
-   PROC PRINT DATA= WORK.SCF;
-   RUN;
-        
-        
-        
- DATA FINAL;
-          MERGE DM1 (IN=A) IC DS EX TRT SCF;
-          BY USUBJID;
-          IF A;
-          IF ARM= 'ASSIGNED, NOT TREATED' AND ACTARM EQ '' THEN DO;
-             ARMNRS= 'NOT ASSIGNED'; 
-/*              there is some mistake in above code */
-          END;
-          
-          COUNTRY= 'USA';
- RUN;
-        
-        
+    SET RAW.DAT_SUB;
+
+    STUDYID = "AAA-2022";
+    DOMAIN  = "DM";
+
+    SITEID  = SITENUM;
+    SUBJID  = SUBSTR(SUBNUM,4);
+    USUBJID = CATX("-", STUDYID, SITEID, SUBJID);
+
+    IF STATUSID = 15 THEN DO;
+        ARMNRS  = "SCREEN FAILURE";
+        ACTARMUD = "SCREEN FAILURE";
+    END;
+
+    KEEP USUBJID ARMNRS ACTARMUD;
+RUN;
+
+
+PROC SORT DATA=SCF;
+    BY USUBJID;
+RUN;
+
+
+PROC PRINT DATA=WORK.SCF;
+RUN;
+
+/*******************************************************************
+* 10. SUBJECT-LEVEL MERGE
+*******************************************************************/
+
+DATA FINAL;
+
+    MERGE
+        DM1   (IN=A)
+        IC
+        DS
+        EX_FINAL
+        TRT
+        SCF;
+
+    BY USUBJID;
+
+    /* Keep only subjects present in DM1 */
+    IF A;
+
+    COUNTRY = "USA";
+
+RUN;
+
+/*******************************************************************
+* 11. FINAL VARIABLE ATTRIBUTES
+*******************************************************************/
+
         
 DATA FINAL1;
 RETAIN
 STUDYID
-DOMAIN
+DOMAIN 
 USUBJID
 SUBJID
 RFSTDTC
@@ -318,9 +369,27 @@ COUNTRY
 ;
 RUN;
      
-/*  	apply attributes and save permanent lib        */
+DATA SDTM.DM
+    (LABEL="DEMOGRAPHICS");
 
-DATA SDTM.DM_ (LABEL='DEMOGRAPHICS');
-SET FINAL1;
+    SET FINAL1;
+
 RUN;
-        
+
+PROC PRINT DATA=WORK.FINAL1;
+RUN;
+
+ods pdf file='/home/u64498565/clinical SAS/clinical/DM_Output.pdf';
+title "SDTM Demographics (DM) Domain";
+title2 "Clinical SAS Portfolio Project";
+
+proc print data=SDTM.DM noobs;
+run;
+
+title;
+title2;
+
+ods pdf close;
+
+
+
