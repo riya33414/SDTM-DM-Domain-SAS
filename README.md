@@ -67,8 +67,5 @@ SDTM-DM-Domain-SAS
 │   └── SDTM_DM_Project_Report.pdf
 │
 ├── Output
-│   └── DM_Output.pdf
-│
-└── Screenshots
-    ├── DM_Dataset.png
-    └── SAS_Log.png
+    └── DM_Output.pdf
+
